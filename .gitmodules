@@ -1,0 +1,39 @@
+[submodule "fuzzers/rtl_fuzz_lab"]
+	path = fuzzers/rtl_fuzz_lab
+	url = https://github.com/KastnerRG/fuzz_rtl_fuzz_lab.git
+[submodule "fuzzers/hw_like_sw"]
+	path = fuzzers/hw_like_sw
+	url = https://github.com/KastnerRG/fuzz_hw_like_sw.git
+[submodule "fuzzers/fast_hw_fuzz"]
+	path = fuzzers/fast_hw_fuzz
+	url = https://github.com/KastnerRG/fuzz_fast_hw_fuzz.git
+[submodule "fuzzers/rfuzz"]
+	path = fuzzers/rfuzz
+	url = https://github.com/KastnerRG/fuzz_rfuzz.git
+[submodule "fuzzers/hyperfuzzer"]
+	path = fuzzers/hyperfuzzer
+	url = https://github.com/KastnerRG/fuzz_hyperfuzzer.git
+[submodule "fuzzers/spinalfuzz"]
+	path = fuzzers/spinalfuzz
+	url = https://github.com/KastnerRG/fuzz_spinalfuzz.git
+[submodule "fuzzers/presifuzz"]
+	path = fuzzers/presifuzz
+	url = https://github.com/KastnerRG/fuzz_presifuzz.git
+[submodule "fuzzers/hw_fuzzing_afl"]
+	path = fuzzers/hw_fuzzing_afl
+	url = https://github.com/KastnerRG/fuzz_hw_fuzzing_afl.git
+[submodule "fuzzers/symbfuzz"]
+	path = fuzzers/symbfuzz
+	url = https://github.com/KastnerRG/fuzz_symbfuzz.git
+[submodule "fuzzers/profuzz"]
+	path = fuzzers/profuzz
+	url = https://github.com/KastnerRG/fuzz_profuzz.git
+[submodule "fuzzers/fuss"]
+	path = fuzzers/fuss
+	url = https://github.com/KastnerRG/fuzz_fuss.git
+[submodule "fuzzers/directfuzz"]
+	path = fuzzers/directfuzz
+	url = https://github.com/KastnerRG/fuzz_directfuzz.git
+[submodule "fuzzers/nocfuzzer"]
+	path = fuzzers/nocfuzzer
+	url = https://github.com/KastnerRG/fuzz_noc-fuzzer-src.git

@@ -1,0 +1,145 @@
+name: Published image examples
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      published_image:
+        description: Published image to pull and test
+        type: string
+        default: ghcr.io/kastnerrg/oss-hw-fuzz:latest
+      duration:
+        description: Fuzzing budget in seconds per example
+        type: string
+        default: '60'
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: published-examples-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run-examples:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    defaults:
+      run:
+        shell: bash
+    env:
+      PUBLISHED_IMAGE: ${{ inputs.published_image || 'ghcr.io/kastnerrg/oss-hw-fuzz:latest' }}
+      IMAGE: oss-hw-fuzz:ci
+      CONTAINER: oss-hw-fuzz-ci
+      RESULTS: ${{ github.workspace }}/results
+      # FuSS needs time to replay symbolic inputs generated late on hosted CPUs.
+      DURATION: ${{ inputs.duration || '60' }}
+      BUILD_JOBS: '2'
+      # Hosted runners have no commercial EDA installations or licenses.
+      TOOL_ROOTS: ''
+      TOOL_PATHS: ''
+      LICENSE_ENV_VARS: ''
+    steps:
+      - name: Check out the launcher
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The published image contains its own sources and dependencies.
+          submodules: false
+
+      - name: Make room for the unified image
+        run: |
+          mkdir -p ci-logs
+          # These hosted-runner SDKs are unused by the containerized examples.
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          df -h /var/lib/docker "$GITHUB_WORKSPACE" | tee ci-logs/disk-before.log
+          available=$(df -B1 --output=avail /var/lib/docker | tail -n 1)
+          if (( available < 25 * 1024 * 1024 * 1024 )); then
+            echo '::error::At least 25 GiB of free Docker storage is required for the image and examples.'
+            exit 1
+          fi
+
+      - name: Authenticate to GHCR
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Pull the published image
+        timeout-minutes: 20
+        run: |
+          make image 2>&1 | tee ci-logs/image.log
+          docker image inspect "$IMAGE" --format '{{.Id}} {{json .RepoDigests}}' | tee ci-logs/image-id.log
+
+      - name: Run open-source backend examples
+        id: examples
+        timeout-minutes: 150
+        run: make run_all_oss_backend 2>&1 | tee ci-logs/run-all.log
+
+      - name: Collect partial results and disk usage
+        if: always()
+        run: |
+          mkdir -p "$RESULTS" ci-logs
+          if docker container inspect "$CONTAINER" >/dev/null 2>&1; then
+            # A timed-out docker exec can leave the campaign running in the container.
+            docker stop --time 30 "$CONTAINER" >/dev/null
+            docker cp "$CONTAINER:/results/." "$RESULTS/"
+          fi
+          df -h /var/lib/docker "$GITHUB_WORKSPACE" | tee ci-logs/disk-after.log
+
+      - name: Check and summarize example coverage
+        if: always() && steps.examples.outcome != 'skipped'
+        run: |
+          python3 - <<'PY'
+          import csv
+          import os
+          import runpy
+          from pathlib import Path
+
+          # Detect stale images that silently omit an example in this checkout.
+          expected = runpy.run_path("scripts/run-examples.py")["OSS_BACKEND_NAMES"]
+          summaries = sorted(Path(os.environ["RESULTS"]).glob("*/summary.tsv"))
+          if len(summaries) != 1:
+              print(f"::error title=Missing suite summary::Expected one suite summary, found {len(summaries)}")
+              raise SystemExit(f"Expected one suite summary, found {len(summaries)}")
+          with summaries[0].open() as source:
+              rows = list(csv.DictReader(source, delimiter="\t"))
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+              summary.write("| Fuzzer | Status | Exit code |\n| --- | --- | --- |\n")
+              for row in rows:
+                  summary.write(f"| {row['fuzzer']} | {row['status']} | {row['exit_code']} |\n")
+          actual = [row["fuzzer"] for row in rows]
+          if sorted(actual) != sorted(expected):
+              print(f"::error title=Incomplete example coverage::Expected {list(expected)}, got {actual}")
+              raise SystemExit(f"Incomplete or outdated image: expected {list(expected)}, got {actual}")
+          failures = [row for row in rows if (row["status"], row["exit_code"]) != ("PASS", "0")]
+          for row in failures:
+              print("::error title={} failed::{} (exit {}); see uploaded results".format(
+                  row["fuzzer"], row["status"], row["exit_code"]))
+          if failures:
+              raise SystemExit("An example failed; inspect the retained logs and results")
+          PY
+
+      - name: Archive results for artifact upload
+        if: always()
+        run: |
+          mkdir -p "$RESULTS" ci-logs
+          tar -C "$RESULTS" -czf ci-logs/results.tar.gz .
+
+      - name: Upload logs and results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: example-results-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ci-logs/
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Remove the container and registry login
+        if: always()
+        run: |
+          make kill
+          docker logout ghcr.io

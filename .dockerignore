@@ -1,0 +1,12 @@
+**/.git
+results
+prompt.md
+config.mk
+**/__pycache__
+**/*.pyc
+# Build PreSiFuzz from source even after a local standalone run.
+fuzzers/presifuzz/fuzzers/opentitan-fuzzer-verilator-hw-cov/fusesoc_libraries/
+fuzzers/presifuzz/fuzzers/opentitan-fuzzer-verilator-hw-cov/build/
+fuzzers/presifuzz/fuzzers/opentitan-fuzzer-verilator-hw-cov/target/
+fuzzers/presifuzz/fuzzers/opentitan-fuzzer-verilator-hw-cov/logs/
+fuzzers/presifuzz/fuzzers/opentitan-fuzzer-verilator-hw-cov/solutions/
