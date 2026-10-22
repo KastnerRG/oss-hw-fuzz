@@ -91,6 +91,26 @@ class ToolEnvironmentTests(unittest.TestCase):
         self.assertEqual(launcher.resolve(), payload)
         self.assertEqual(result["environment"]["XCELIUM_HOME"], str(home))
 
+    def test_bundled_tools_inside_a_versioned_install_are_not_selected(self):
+        synopsys = self.root / "installs" / "Synopsys"
+        standalone = self.executable(synopsys / "verdi" / "Y-2026.03-SP1" / "bin", "verdi")
+        certitude = synopsys / "certitude" / "Y-2026.03-SP2"
+        self.executable(certitude / "bin", "certitude")
+        vc_static = synopsys / "vc_static" / "Y-2026.03-SP2"
+        self.executable(vc_static / "bin", "vcf")
+        self.executable(vc_static / "bin", "vc_static_shell")
+        self.executable(vc_static / "verdi" / "bin", "verdi")
+        self.executable(vc_static / "certitude" / "bin", "certitude")
+
+        result = self.discover([synopsys.parent])
+        self.assertEqual(result["tools"]["vc_static"]["executable"],
+                         str(vc_static / "bin" / "vc_static_shell"))
+        self.assertEqual(result["environment"]["VC_STATIC_HOME"], str(vc_static))
+        self.assertEqual(result["tools"]["verdi"]["executable"], str(standalone))
+        self.assertEqual(result["tools"]["certitude"]["executable"],
+                         str(certitude / "bin" / "certitude"))
+        self.assertEqual(result["environment"]["CERTITUDE_HOME"], str(certitude))
+
     def test_shared_wrapper_does_not_replace_public_command_name(self):
         home = self.root / "installs" / "GENUS231"
         wrapper = self.executable(home / "bin", ".cdnWrapperIndep")

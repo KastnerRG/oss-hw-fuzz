@@ -52,6 +52,10 @@ if [[ "$action" == tools ]]; then
     exec "${discover[@]}" --format json
 fi
 [[ "$action" == start ]] || { echo "Unknown action: $action" >&2; exit 2; }
+workspace=$(realpath -e -- "$(normalize "${WORKSPACE:-$PWD}")")
+mounts+=(--mount "type=bind,$(csv_field "source=$workspace"),target=/workspace")
+shm_size=${SHM_SIZE:-1g}
+container_hostname=${CONTAINER_HOSTNAME:-fuzz}
 
 env_file=$(mktemp)
 trap 'rm -f "$env_file"' EXIT
@@ -71,20 +75,22 @@ done
 # Detect stale environments without removing a container or its results.
 image_id=$("${docker_cmd[@]}" image inspect "$IMAGE" --format '{{.Id}}')
 configuration=$({
-    printf '%s\0' "$image_id" "$roots_value" "$paths_value" "${mounts[@]}"
+	printf '%s\0' "$image_id" "$roots_value" "$paths_value" "$shm_size" \
+		"$container_hostname" "${mounts[@]}"
     cat "$env_file" "${SECCOMP_PROFILE:?SECCOMP_PROFILE is required}"
 } | sha256sum | cut -d ' ' -f 1)
 label=org.oss-hw-fuzz.tool-configuration
 if "${docker_cmd[@]}" container inspect "${CONTAINER:?CONTAINER is required}" >/dev/null 2>&1; then
     existing=$("${docker_cmd[@]}" inspect "$CONTAINER" --format "{{index .Config.Labels \"$label\"}}")
     if [[ "$existing" != "$configuration" ]]; then
-        echo "Container $CONTAINER has a different image or tool configuration." >&2
+		echo "Container $CONTAINER has a different image, hostname, workspace, shared memory size, or tool configuration." >&2
         echo 'Copy any needed results, then use make restart to apply the current configuration.' >&2
         exit 1
     fi
     "${docker_cmd[@]}" start "$CONTAINER" >/dev/null
 else
-    "${docker_cmd[@]}" run --detach --init --name "$CONTAINER" \
-        --label "$label=$configuration" --security-opt "seccomp=$SECCOMP_PROFILE" \
-        "${env_args[@]}" "${mounts[@]}" --shm-size=1g "$IMAGE" sleep infinity
+	"${docker_cmd[@]}" run --detach --init --name "$CONTAINER" \
+		--hostname "$container_hostname" \
+		--label "$label=$configuration" --security-opt "seccomp=$SECCOMP_PROFILE" \
+        "${env_args[@]}" "${mounts[@]}" --workdir /workspace --shm-size="$shm_size" "$IMAGE" sleep infinity
 fi

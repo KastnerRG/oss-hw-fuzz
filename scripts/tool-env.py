@@ -15,6 +15,8 @@ TOOLS = {
     "vivado": (("vivado",), ("VIVADO_HOME", "XILINX_VIVADO")),
     "vcs": (("vcs",), ("VCS_HOME",)),
     "verdi": (("verdi",), ("VERDI_HOME",)),
+    "vc_static": (("vc_static_shell", "vcf"), ("VC_STATIC_HOME",)),
+    "certitude": (("certitude",), ("CERTITUDE_HOME",)),
     "testmax": (("tmax", "tmax64"), ("TESTMAX_HOME", "SYNOPSYS_TMAX")),
     "genus": (("genus",), ("GENUS_HOME",)),
     "xcelium": (("xrun",), ("XCELIUM_HOME",)),

@@ -68,6 +68,22 @@ Results are copied to `results/<timestamp>/`, including `summary.tsv`, logs, cor
 Set `RESULTS=/absolute/path` to change the host destination.
 `PASS` means the example met its checks, `SKIP` means a required tool or artifact is unavailable, and `FAIL` means a check failed.
 
+## Workspace access
+
+The launcher mounts `WORKSPACE` at `/workspace` and starts there, while the image keeps its built fuzzer trees under `/opt/fuzzers`.
+`WORKSPACE` defaults to this repository; point it at a parent directory to expose related projects without rebuilding the image.
+`SHM_SIZE` controls `/dev/shm` for in-memory experiment inputs, logs, and coverage databases.
+For the CRV experiment in the parent directory, create a separate container so existing campaign results remain available:
+
+```sh
+make start CONTAINER=oss-hw-crv WORKSPACE=.. SHM_SIZE=8g
+docker exec --user "$(id -u):$(id -g)" -it oss-hw-crv bash
+```
+
+The numeric user keeps files written under `/workspace` owned by your host account.
+Image sources under `/opt/fuzzers` remain owned by the image user; copy build inputs into the mounted workspace or `/dev/shm` when running as your host account.
+Changing the workspace or shared-memory size on an existing container requires `make restart` with the same settings.
+
 ## Commercial tools
 
 Copy [config.example.mk](config.example.mk) to the ignored `config.mk`, or pass the same settings to Make.
@@ -75,6 +91,7 @@ Copy [config.example.mk](config.example.mk) to the ignored `config.mk`, or pass 
 `TOOL_PATHS` selects additional or preferred tool binaries.
 `LICENSE_ENV_VARS` names the license variables forwarded from the host; export the applicable values, such as `SNPSLMD_LICENSE_FILE` for VCS.
 Run `make tools` to inspect discovered installations and `make restart` after changing mounts or an image.
+Certitude defaults to 32-bit simulator libraries; with a 64-bit-only VCS, add `setconfig -SimulatorBitWidth=64` to `certitude_config.cer` and pass `-full64` to `vcs` in the compile script.
 Licensed NoCFuzzer validates the router example; the mesh flow remains outside the bundled check.
 ProFuzz's full campaign remains blocked as detailed in the [audit](docs/integration-audit.md).
 

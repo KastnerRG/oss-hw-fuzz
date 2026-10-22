@@ -7,7 +7,10 @@ DOCKER ?= docker
 IMAGE ?= oss-hw-fuzz:dev
 PUBLISHED_IMAGE ?= ghcr.io/kastnerrg/oss-hw-fuzz:latest
 CONTAINER ?= oss-hw-fuzz-$(shell id -un)
+CONTAINER_HOSTNAME ?= fuzz
 BUILD_JOBS ?= 8
+WORKSPACE ?= $(CURDIR)
+SHM_SIZE ?= 1g
 DURATION ?= 30
 FUZZER ?= all
 RESULTS ?= $(CURDIR)/results
@@ -18,7 +21,7 @@ SECCOMP_PROFILE ?= $(CURDIR)/docker/seccomp-hwfuzz.json
 # TOOL_PATHS pins versions or adds binaries beyond the automatic EDA discovery.
 TOOL_ROOTS ?= /tools:$(HOME)/install:$(HOME)/scratch/install
 TOOL_PATHS ?=
-export IMAGE CONTAINER SECCOMP_PROFILE TOOL_ROOTS TOOL_PATHS
+export IMAGE CONTAINER CONTAINER_HOSTNAME SECCOMP_PROFILE TOOL_ROOTS TOOL_PATHS WORKSPACE SHM_SIZE
 
 # Inherit licenses by name so command output never includes their values.
 LICENSE_ENV_VARS ?= LM_LICENSE_FILE XILINXD_LICENSE_FILE SNPSLMD_LICENSE_FILE CDS_LIC_FILE MGLS_LICENSE_FILE

@@ -185,6 +185,62 @@ COPY --chown=fuzz:fuzz fuzzers/presifuzz/ /opt/fuzzers/presifuzz/
 RUN cd /opt/fuzzers/presifuzz/fuzzers/opentitan-fuzzer-verilator-hw-cov \
  && ./build.sh
 
+# HWF uses classic AFL, not the AFL++ package used by other image targets.
+FROM base AS hwf_classic
+ARG HWF_AFL_REV=61037103ae3722c8060ff7082994836a794f978e
+RUN git init /opt/hwf-afl \
+ && git -C /opt/hwf-afl remote add origin https://github.com/google/AFL.git \
+ && git -C /opt/hwf-afl fetch --depth 1 origin "$HWF_AFL_REV" \
+ && git -C /opt/hwf-afl checkout --detach FETCH_HEAD \
+ && sed -i '/cc_params\[cc_par_cnt++\] = "-mllvm";/d; /sanitizer-coverage-block-threshold/d' \
+      /opt/hwf-afl/llvm_mode/afl-clang-fast.c \
+ && sed -i '/ck_read(dev_urandom_fd, \&seed, sizeof(seed), "\/dev\/urandom");/c\    if (getenv("CRV_SEED")) { seed[0] = random(); seed[1] = random(); } else ck_read(dev_urandom_fd, \&seed, sizeof(seed), "/dev/urandom");' \
+      /opt/hwf-afl/afl-fuzz.c \
+ && sed -i '/srandom(tv.tv_sec \^ tv.tv_usec \^ getpid());/c\  { char *seed = getenv("CRV_SEED"); srandom(seed ? strtoul(seed, 0, 10) : tv.tv_sec ^ tv.tv_usec ^ getpid()); }' \
+      /opt/hwf-afl/afl-fuzz.c \
+ && make -C /opt/hwf-afl -j"$BUILD_JOBS" PREFIX=/opt/hwf \
+ && make -C /opt/hwf-afl/llvm_mode AFL_TRACE_PC=1 PREFIX=/opt/hwf \
+ && make -C /opt/hwf-afl install AFL_TRACE_PC=1 PREFIX=/opt/hwf
+
+# Keep current OpenTitan's DVSim stack separate from PreSiFuzz's older forks.
+FROM base AS crv_tools
+RUN python3 -m venv /opt/crv \
+ && /opt/crv/bin/pip install --no-cache-dir \
+      dvsim==1.52.0 fusesoc==2.4.5 edalize==0.6.3 hjson==3.1.0 Mako==1.4.3 \
+      semantic_version==2.10.0 mistletoe==0.9.0 peakrdl-systemrdl==1.0.1 pycryptodome==3.23.0 \
+ && sed -i 's/tests_objs = set()/tests_objs = []/; s/tests_objs.add(test_obj)/tests_objs.append(test_obj)/' \
+      /opt/crv/lib/python3.10/site-packages/dvsim/regression.py \
+ && printf '%s\n' '#!/bin/sh' 'export PATH=/opt/crv/bin:$PATH' \
+      'exec /opt/crv/bin/dvsim "$@"' > /usr/local/bin/dvsim \
+ && chmod 755 /usr/local/bin/dvsim
+
+# The replay experiment only needs the AES fuzzer and current DVSim stacks.
+# Keeping this target small avoids building unrelated fuzzers and private submodules.
+FROM presifuzz AS crv_runtime
+USER root
+# VC Static's vc_static_shell1 links libXtst, and Certitude links libX11-xcb, even in batch mode.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      tcsh ksh dc lsb-release libelf1 libtinfo5 libncurses5 libnuma1 libxtst6 libx11-xcb1 \
+ && ln -sf /bin/bash /bin/sh \
+ && rm -rf /var/lib/apt/lists/*
+# Certitude needs the OpenSSL 1.1 ABI, absent from Ubuntu 22.04.
+# Extract only those libraries, as the final image does for TestMAX's libpng12.
+RUN curl -fLsS --retry 3 -o /tmp/libssl1.1.deb \
+      https://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.24_amd64.deb \
+ && echo '7cf39d70a639017d1dd7c8d36daa2258063608688e449fddf40ffdd46f992a78  /tmp/libssl1.1.deb' | sha256sum -c - \
+ && dpkg-deb -x /tmp/libssl1.1.deb /tmp/libssl1.1 \
+ && install -m 0644 /tmp/libssl1.1/usr/lib/x86_64-linux-gnu/libssl.so.1.1 \
+      /tmp/libssl1.1/usr/lib/x86_64-linux-gnu/libcrypto.so.1.1 /usr/local/lib/ \
+ && install -D -m 0644 /tmp/libssl1.1/usr/share/doc/libssl1.1/copyright /usr/local/share/doc/libssl1.1/copyright \
+ && ldconfig \
+ && rm -rf /tmp/libssl1.1 /tmp/libssl1.1.deb
+COPY --from=crv_tools /opt/crv/ /opt/crv/
+COPY --from=crv_tools /usr/local/bin/dvsim /usr/local/bin/dvsim
+COPY --from=hwf_classic /opt/hwf/ /opt/hwf/
+COPY --chmod=755 scripts/tool-env.py /usr/local/bin/tool-env
+USER fuzz
+WORKDIR /workspace
+
 FROM base AS firrtl
 COPY --chown=fuzz:fuzz fuzzers/rtl_fuzz_lab/ /opt/fuzzers/rtl_fuzz_lab/
 USER root
