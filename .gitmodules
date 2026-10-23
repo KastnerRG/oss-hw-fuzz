@@ -37,3 +37,9 @@
 [submodule "fuzzers/nocfuzzer"]
 	path = fuzzers/nocfuzzer
 	url = https://github.com/KastnerRG/fuzz_noc-fuzzer-src.git
+[submodule "fuzzers/interconfuzz"]
+	path = fuzzers/interconfuzz
+	url = https://github.com/KastnerRG/fuzz_InterConFuzz.git
+[submodule "fuzzers/vgf"]
+	path = fuzzers/vgf
+	url = https://github.com/KastnerRG/fuzz_vgf.git

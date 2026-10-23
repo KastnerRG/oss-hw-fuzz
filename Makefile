@@ -9,6 +9,7 @@ PUBLISHED_IMAGE ?= ghcr.io/kastnerrg/oss-hw-fuzz:latest
 CONTAINER ?= oss-hw-fuzz-$(shell id -un)
 CONTAINER_HOSTNAME ?= fuzz
 BUILD_JOBS ?= 8
+HWFUZZ_BUILD_JOBS ?= $(BUILD_JOBS)
 WORKSPACE ?= $(CURDIR)
 SHM_SIZE ?= 1g
 DURATION ?= 30
@@ -50,13 +51,13 @@ init:
 	git -C fuzzers/fuss submodule update --init -- difuzz-rtl
 
 scratch: init
-	$(DOCKER) build --pull --no-cache --build-arg BUILD_JOBS="$(BUILD_JOBS)" -t "$(IMAGE)" .
+	$(DOCKER) build --pull --no-cache --build-arg BUILD_JOBS="$(BUILD_JOBS)" --build-arg HWFUZZ_BUILD_JOBS="$(HWFUZZ_BUILD_JOBS)" -t "$(IMAGE)" .
 
 # Cached rebuilds are useful while working on this Dockerfile.
 build: init
-	$(DOCKER) build --build-arg BUILD_JOBS="$(BUILD_JOBS)" -t "$(IMAGE)" .
+	$(DOCKER) build --build-arg BUILD_JOBS="$(BUILD_JOBS)" --build-arg HWFUZZ_BUILD_JOBS="$(HWFUZZ_BUILD_JOBS)" -t "$(IMAGE)" .
 
-publish:
+publish: build
 	$(DOCKER) tag "$(IMAGE)" "$(PUBLISHED_IMAGE)"
 	$(DOCKER) push "$(PUBLISHED_IMAGE)"
 

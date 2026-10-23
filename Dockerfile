@@ -50,13 +50,14 @@ COPY --chown=fuzz:fuzz fuzzers/nocfuzzer/ /opt/fuzzers/nocfuzzer/
 USER fuzz
 RUN make -C /opt/fuzzers/nocfuzzer/noc_router_fuzz/AFL_hardware afl-fuzz afl-showmap \
  && make -C /opt/fuzzers/nocfuzzer/noc_router_fuzz/router_simple -f Makefile.native native-proxy \
+ && sed -i 's/^TIMEOUT = 5$/TIMEOUT = 30/' /opt/fuzzers/nocfuzzer/noc_router_fuzz/integration/test_native.py \
  && python3 /opt/fuzzers/nocfuzzer/noc_router_fuzz/integration/test_native.py \
  && python3 /opt/fuzzers/nocfuzzer/noc_router_fuzz/integration/test_runner.py
 
 # HWFuzzing's bit-level taint instrumentation requires its modified LLVM 15.
 # Keep this compiler-only stage independent of example and AFL source changes.
 FROM base AS hwfuzz_tools
-ARG BUILD_JOBS=8
+ARG HWFUZZ_BUILD_JOBS=8
 ARG HWFUZZ_LLVM_REV=2e28165c7904f3b6cdf8ba08f4a34c247db5bf01
 USER root
 RUN git init /tmp/hw-fuzzing-llvm \
@@ -73,7 +74,7 @@ RUN git init /tmp/hw-fuzzing-llvm \
       -DLIBCXX_CXX_FLAGS=-fsanitize=memory \
       -DLLVM_TARGETS_TO_BUILD=X86 \
       -DCLANG_ENABLE_STATIC_ANALYZER=OFF -DCLANG_ENABLE_ARCMT=OFF \
- && cmake --build /tmp/hw-fuzzing-llvm-build -j "${BUILD_JOBS}" \
+ && cmake --build /tmp/hw-fuzzing-llvm-build -j "${HWFUZZ_BUILD_JOBS}" \
  && cmake --install /tmp/hw-fuzzing-llvm-build \
  && install -m644 /tmp/hw-fuzzing-llvm/compiler-rt/include/tainting.h \
       "$(/opt/hw_fuzzing_afl/llvm/bin/clang -print-resource-dir)/include/tainting.h" \
@@ -83,7 +84,7 @@ RUN git init /tmp/hw-fuzzing-llvm \
       -DLLVM_USE_SANITIZER=Memory \
       -DCMAKE_INSTALL_PREFIX=/opt/hw_fuzzing_afl/libcxx \
       '-DLLVM_ENABLE_RUNTIMES=libcxx;libcxxabi' \
- && cmake --build /tmp/hw-fuzzing-libcxx-build -j "${BUILD_JOBS}" \
+ && cmake --build /tmp/hw-fuzzing-libcxx-build -j "${HWFUZZ_BUILD_JOBS}" \
  && cmake --install /tmp/hw-fuzzing-libcxx-build \
  && rm -rf /tmp/hw-fuzzing-llvm /tmp/hw-fuzzing-llvm-build /tmp/hw-fuzzing-libcxx-build
 
@@ -386,6 +387,68 @@ RUN git clone --depth 1 --branch yosys-0.40 https://github.com/YosysHQ/yosys.git
  && make -C /tmp/yosys install PREFIX=/opt/symbfuzz/yosys ENABLE_ABC=0 ENABLE_TCL=0 ENABLE_READLINE=0 \
  && rm -rf /tmp/yosys
 
+# InterConFuzz uses its own SymbFuzz engine and bundled interconnect shells.
+# Keep its Python environment and sv2v version private to this example.
+FROM symbfuzz_tools AS interconfuzz
+ARG INTERCONFUZZ_OPENTITAN_REV=4b5d98310dd4f73a787c1c954294a8aee8b92bd2
+COPY --chown=fuzz:fuzz fuzzers/interconfuzz/ /opt/fuzzers/interconfuzz/
+RUN git init /tmp/interconfuzz-opentitan \
+ && git -C /tmp/interconfuzz-opentitan remote add origin https://github.com/lowRISC/opentitan.git \
+ && git -C /tmp/interconfuzz-opentitan sparse-checkout init --cone \
+ && git -C /tmp/interconfuzz-opentitan sparse-checkout set \
+      hw/ip/prim/rtl hw/ip/prim_generic/rtl hw/ip/tlul/rtl \
+ && git -C /tmp/interconfuzz-opentitan fetch --depth 1 --filter=blob:none \
+      origin "${INTERCONFUZZ_OPENTITAN_REV}" \
+ && git -C /tmp/interconfuzz-opentitan checkout --detach FETCH_HEAD \
+ && test "$(git -C /tmp/interconfuzz-opentitan rev-parse HEAD)" = "${INTERCONFUZZ_OPENTITAN_REV}" \
+ && mkdir -p /opt/fuzzers/interconfuzz/RTL_Tst_Cases/opentitan/hw/ip \
+ && cp -a /tmp/interconfuzz-opentitan/hw/ip/prim \
+          /tmp/interconfuzz-opentitan/hw/ip/prim_generic \
+          /tmp/interconfuzz-opentitan/hw/ip/tlul \
+          /opt/fuzzers/interconfuzz/RTL_Tst_Cases/opentitan/hw/ip/ \
+ && chown -R fuzz:fuzz /opt/fuzzers/interconfuzz/RTL_Tst_Cases \
+ && rm -rf /tmp/interconfuzz-opentitan
+RUN curl -fLsS --retry 3 -o /tmp/sv2v.zip \
+      https://github.com/zachjs/sv2v/releases/download/v0.0.13/sv2v-Linux.zip \
+ && echo '552799a1d76cd177b9b4cc63a3e77823a3d2a6eb4ec006569288abeff28e1ff8  /tmp/sv2v.zip' | sha256sum -c - \
+ && unzip -j /tmp/sv2v.zip sv2v-Linux/sv2v -d /opt/ \
+ && chmod 755 /opt/sv2v \
+ && rm /tmp/sv2v.zip
+USER fuzz
+# The optional FlooNoC regeneration packages in requirements.txt require a
+# newer Python than Ubuntu 22.04; the bundled socket example needs these pins.
+RUN cd /opt/fuzzers/interconfuzz \
+ && python3 -m venv .venv \
+ && .venv/bin/pip install --no-cache-dir \
+      Jinja2==3.1.6 MarkupSafe==3.0.3 PyYAML==6.0.3 z3-solver==4.16.0.0 \
+      hjson==3.1.0 Mako==1.4.3 \
+ && .venv/bin/pip install --no-cache-dir -e . --no-deps \
+ && cp /opt/sv2v .venv/bin/sv2v \
+ && Z3_ROOT="$(.venv/bin/python -c 'import os, z3; print(os.path.dirname(z3.__file__))')" \
+ && cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+      -DZ3_LIB="${Z3_ROOT}/lib/libz3.so" -DZ3_INCLUDE_DIR="${Z3_ROOT}/include" \
+ && cmake --build build -j "${BUILD_JOBS}" \
+ && build/symbfuzz --help >/dev/null \
+ && .venv/bin/sv2v --help >/dev/null
+
+# VGF's bundled FSM lock uses Icarus and cocotb's VPI bridge.
+FROM base AS vgf
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      iverilog tcl-dev python3-dev \
+ && rm -rf /var/lib/apt/lists/*
+RUN python3 -m venv /opt/vgf/venv \
+ && /opt/vgf/venv/bin/pip install --no-cache-dir \
+      cocotb==1.6.1 sysv_ipc==1.1.0
+COPY --chown=fuzz:fuzz fuzzers/vgf/ /opt/fuzzers/vgf/
+USER fuzz
+RUN sed -i 's/constexpr auto avalon_mm_signals/const auto avalon_mm_signals/; s/constexpr auto axi_mm_signals/const auto axi_mm_signals/' \
+      /opt/fuzzers/vgf/src/fuzzer/tclconfig/interfaces.hpp \
+ && make -C /opt/fuzzers/vgf/src/fuzzer/libcemu -j "${BUILD_JOBS}" \
+ && make -C /opt/fuzzers/vgf/src/fuzzer/tclconfig -j "${BUILD_JOBS}" \
+ && PATH="/opt/vgf/venv/bin:${PATH}" \
+    make -C /opt/fuzzers/vgf/src/wrapper \
+      TEST=../testcases/0000-fsm-unlock -j "${BUILD_JOBS}"
+
 FROM base AS final
 LABEL org.opencontainers.image.source="https://github.com/KastnerRG/oss-hw-fuzz"
 # Runtime dependencies for optional, read-only host EDA tool mounts.
@@ -393,6 +456,7 @@ LABEL org.opencontainers.image.source="https://github.com/KastnerRG/oss-hw-fuzz"
 # FuSS's freestanding RISC-V templates need Newlib headers in GCC's target include path.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       locales tcsh ksh dc lsb-release libgl1 libelf1 libtinfo5 libncurses5 libnuma1 libxtst6 \
+      iverilog libtcl8.6 \
       libx11-xcb1 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
       libxcb-render-util0 libxcb-shape0 libxcb-sync1 libxcb-xfixes0 \
       libxcb-xinerama0 libxcb-xkb1 libxkbcommon-x11-0 \
@@ -414,8 +478,21 @@ RUN curl -fLsS --retry 3 -o /tmp/libpng12.deb \
  && install -D -m 0644 /tmp/libpng12/usr/share/doc/libpng12-0/copyright /usr/local/share/doc/libpng12/copyright \
  && ldconfig \
  && rm -rf /tmp/libpng12 /tmp/libpng12.deb
+# Certitude needs the OpenSSL 1.1 ABI, absent from Ubuntu 22.04.
+RUN curl -fLsS --retry 3 -o /tmp/libssl1.1.deb \
+      https://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.24_amd64.deb \
+ && echo '7cf39d70a639017d1dd7c8d36daa2258063608688e449fddf40ffdd46f992a78  /tmp/libssl1.1.deb' | sha256sum -c - \
+ && dpkg-deb -x /tmp/libssl1.1.deb /tmp/libssl1.1 \
+ && install -m 0644 /tmp/libssl1.1/usr/lib/x86_64-linux-gnu/libssl.so.1.1 \
+      /tmp/libssl1.1/usr/lib/x86_64-linux-gnu/libcrypto.so.1.1 /usr/local/lib/ \
+ && install -D -m 0644 /tmp/libssl1.1/usr/share/doc/libssl1.1/copyright /usr/local/share/doc/libssl1.1/copyright \
+ && ldconfig \
+ && rm -rf /tmp/libssl1.1 /tmp/libssl1.1.deb
 ENV LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
 COPY --from=symbfuzz_tools /opt/symbfuzz/ /opt/symbfuzz/
+COPY --from=interconfuzz /opt/fuzzers/interconfuzz/ /opt/fuzzers/interconfuzz/
+COPY --from=vgf /opt/fuzzers/vgf/ /opt/fuzzers/vgf/
+COPY --from=vgf /opt/vgf/ /opt/vgf/
 COPY --from=sv /opt/fuzzers/ /opt/fuzzers/
 COPY --from=sv /opt/hw_like_sw/ /opt/hw_like_sw/
 COPY --from=hwfuzz /opt/hw_fuzzing_afl/ /opt/hw_fuzzing_afl/

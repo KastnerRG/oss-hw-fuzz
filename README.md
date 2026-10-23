@@ -24,18 +24,48 @@ The table covers IP, SoC, and NoC fuzzers from [SoK: You Find What You Seek](htt
 | [FastHwFuzz](https://github.com/KastnerRG/fuzz_fast_hw_fuzz) | IP | FIRRTL | [GLSVLSI'25](https://doi.org/10.1145/3716368.3735190) | `Working` | TLI2C. |
 | [HWFuzzing](https://github.com/KastnerRG/fuzz_hw_fuzzing_afl) | RTL | SV | — | `Working` | RTL taint-chain example. |
 | [NoCFuzzer](https://github.com/KastnerRG/fuzz_noc-fuzzer-src) | NoC | SV/UVM | [IEEE TCAD'25](https://doi.org/10.1109/TCAD.2024.3430195) | `Working` | Router with DUT coverage and scoreboard; licensed VCS/UVM. |
+| [InterConFuzz](https://github.com/KastnerRG/fuzz_InterConFuzz) | NoC | SV | [DAC'25](https://doi.org/10.1109/DAC63849.2025.11133216) | `Working` | Bundled TL-UL socket misroute BMC hunt; SAT witness retained. |
+| [VGF](https://github.com/KastnerRG/fuzz_vgf) | IP | SV | [arXiv'23](https://arxiv.org/abs/2312.06580) | `Working` | Bundled FSM lock with Icarus, cocotb, and AFL++; two state transitions reach feedback. |
 | [ProFuzz](https://github.com/KastnerRG/fuzz_profuzz) | IP | SV | [ICCAD'25](https://doi.org/10.1109/ICCAD66269.2025.11240782) | `Need tool` | I2C preparation passes; full campaign blocked by missing inputs and Genus failure. |
 | BugsBunny | IP | | [SILM'22](https://silm-workshop.github.io/2022-papers/silm2022-bugsbunny.pdf) | `Will get` | |
 | TargetFuzz | IP | | [ASP-DAC'26](https://doi.org/10.1109/ASP-DAC66049.2026.11420533) | `Will get` | |
 | SynFuzz | Netlist | | [arXiv'25](https://arxiv.org/abs/2504.18812) | `Will get` | |
 | Fuzzitizer | SoC | | [ASIA CCS'26](https://doi.org/10.1145/3779208.3806078) | `Will get` | |
-| InterConFuzz | NoC | | [DAC'25](https://doi.org/10.1109/DAC63849.2025.11133216) | `Will get` | |
-| VGF | IP | | [arXiv'23](https://arxiv.org/abs/2312.06580) | `No response` | |
 | FuzzWiz | IP | | [ISETC'24](https://doi.org/10.1109/ISETC63109.2024.10797245) | `No response` | |
 | FMTC | IP | | [ISCAS'21](https://doi.org/10.1109/ISCAS51556.2021.9401267) | `No response` | |
 | FormalFuzzer | SoC | | [ASP-DAC'24](https://doi.org/10.1109/ASP-DAC58780.2024.10473911) | `No response` | |
 | SoCFuzzer | SoC | | [DATE'23](https://doi.org/10.23919/DATE56975.2023.10137024) | `No response` | |
 | TaintFuzzer | SoC | | [ICCAD'23](https://doi.org/10.1109/ICCAD57390.2023.10323726) | `No response` | |
+
+## Bundled IPs
+
+IPs are matched by source, not function: TLI2C, ProFuzz's I2C, and SpinalFuzz's I2cSlave are different IPs.
+Shared rows ship identical sources; `+` names fuzzers that ship another version of the same IP.
+DirectFuzz, RTLFuzzLab, and FastHwFuzz ship no IPs of their own.
+
+| IP | HDL | # | Fuzzers |
+| --- | --- | --- | --- |
+| TLI2C, TLPWM, TLSPI, TLUART | Chisel | 5 | DirectFuzz, RFUZZ, RTLFuzzLab, FastHwFuzz, Fuzzing HW like SW |
+| Sodor1Stage, Sodor3Stage | Chisel | 4 | DirectFuzz, RFUZZ, FastHwFuzz, Fuzzing HW like SW; + ProFuzz (later revision, gate-level) |
+| Sodor5Stage | Chisel | 4 | DirectFuzz, RFUZZ, FastHwFuzz, Fuzzing HW like SW |
+| RocketTile | Chisel | 3 | RFUZZ, RTLFuzzLab, FastHwFuzz; + FuSS (DifuzzRTL), PreSiFuzz (Chipyard) |
+| FFTSmall | Chisel | 3 | DirectFuzz, RFUZZ, Fuzzing HW like SW |
+| GCD | FIRRTL | 3 | RFUZZ, RTLFuzzLab, FastHwFuzz |
+| OpenTitan AES | SV | 2 | Fuzzing HW like SW, PreSiFuzz |
+| Sodor2Stage | Chisel | 2 | RFUZZ, Fuzzing HW like SW |
+| OpenTitan HMAC, KMAC, RV Timer, alert handler; lock | SV | 1 | Fuzzing HW like SW |
+| ICache, ICacheCover, NonBlockingDCache | Chisel | 1 | RFUZZ |
+| SmallBoomTile v1.2, v1.3 | Chisel | 1 | FuSS |
+| CVA6 | SV | 1 | PreSiFuzz |
+| SHA-256 (secworks) | Verilog | 1 | PreSiFuzz; + ProFuzz (modified core, gate-level) |
+| I2C, SPI, UART, GPIO, PWM, FIR, IIR, DFT, IDFT, DES3, OR1200 control, MIPS | Netlist | 1 | ProFuzz |
+| GCD, CnnBuffer, Alu, I2cSlave, Apb3Timer, SpiXdrMaster, Apb3SpiSlave, UartCtrl, Apb3UartCtrl, BmbI2cCtrl | SpinalHDL | 1 | SpinalFuzz |
+| oc8051 SoC with AES-128, SHA-1, and modexp | Verilog | 1 | HyperFuzzing |
+| Counter, lock FSM, UART TX | Verilog | 1 | SymbFuzz |
+| TL-UL socket, tlgen x2d4 and earlgrey crossbars, PULP AXI crossbar | SV | 1 | InterConFuzz |
+| OpenPiton router, 3×3 mesh | Verilog | 1 | NoCFuzzer |
+| Taint chain | SV | 1 | HWFuzzing |
+| FSM unlock (2), clock-domain tests (4), b01, RS232-T100, ISCAS'85/'89 | Verilog | 1 | VGF |
 
 ## Run
 
@@ -59,9 +89,11 @@ make run_all_oss_backend DURATION=30
 ```
 
 `make run_all` runs every example, including licensed flows.
-`make run_all_oss_backend` runs the ten examples that need no commercial EDA tools.
+`make run_all_oss_backend` runs the twelve examples that need no commercial EDA tools.
 Run one example with `make run FUZZER=nocfuzzer DURATION=30`, replacing the fuzzer name as needed.
-`DURATION` is the fuzzing budget in seconds; compilation and setup take additional time.
+For the new examples, use `make run FUZZER=interconfuzz DURATION=30` or
+`make run FUZZER=vgf DURATION=30`.
+`DURATION` is the fuzzing or BMC solver budget in seconds; compilation and setup take additional time.
 After building or pulling a new image, use `make restart` so the container uses it.
 
 Results are copied to `results/<timestamp>/`, including `summary.tsv`, logs, corpora, and statistics.
@@ -101,5 +133,5 @@ The [workflow](.github/workflows/run-examples.yml) pulls `ghcr.io/kastnerrg/oss-
 It uses GitHub's built-in token for GHCR and requires every selected example to pass.
 It compares the published image's results with the checked-out fuzzer list, so publish an updated image after changing the runner.
 Logs and a compressed results archive are retained for 14 days; the archive preserves AFL filenames containing colons.
-Build and push the image with `make build` and `make publish` after logging in to GHCR.
+Build and push the image with `make publish` after logging in to GHCR.
 Manual workflow runs can choose another published image and fuzzing duration.

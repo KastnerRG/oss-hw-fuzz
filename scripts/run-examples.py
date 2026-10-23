@@ -22,6 +22,7 @@ from pathlib import Path
 NAMES = (
     "hw_like_sw", "hw_fuzzing_afl", "hyperfuzzer", "presifuzz", "symbfuzz", "profuzz",
     "rtl_fuzz_lab", "fast_hw_fuzz", "rfuzz", "directfuzz", "spinalfuzz", "fuss", "nocfuzzer",
+    "interconfuzz", "vgf",
 )
 COMMERCIAL_TOOL_NAMES = frozenset(("symbfuzz", "profuzz", "nocfuzzer"))
 OSS_BACKEND_NAMES = tuple(name for name in NAMES if name not in COMMERCIAL_TOOL_NAMES)
@@ -157,6 +158,43 @@ def run_example(name, result, duration):
         afl_executed(result / "afl")
 
     match name:
+        case "vgf":
+            # The upstream FSM-unlock testcase is bundled without an input
+            # corpus. The first unlock byte produces a state transition and
+            # gives AFL nonzero feedback during its initial dry run.
+            seeds = result / "seeds"
+            seeds.mkdir()
+            (seeds / "first_unlock_byte").write_bytes(b"\xaa")
+            (seeds / "second_unlock_byte").write_bytes(b"\xaa\xbb")
+            site_packages = Path("/opt/vgf/venv/lib/python3.10/site-packages")
+            env = AFL_ENV | {
+                "PATH": f"/opt/vgf/venv/bin:{os.environ['PATH']}",
+                "PYTHONPATH": f"{root}/src/fuzzer:{site_packages}",
+                "PYTHON_BIN_PATH": "/opt/vgf/venv/bin/python",
+                "USE_LOG_FILE": str(result / "harness.log"),
+            }
+            target = root / "src/wrapper/launch_sim.elf"
+            afl(root / "src/fuzzer", seeds, target, env=env)
+            stats = (result / "afl/default/fuzzer_stats").read_text()
+            match = re.search(r"(?m)^edges_found\s*:\s*(\d+)", stats)
+            require(match and int(match.group(1)) >= 3,
+                    "VGF did not report feedback from both FSM transitions")
+        case "interconfuzz":
+            # Upstream quick start: find a protocol misroute in its bundled
+            # OpenTitan socket with an injected device-select bug.
+            work = result / "bmc_hunt"
+            run(root / ".venv/bin/python", "InterconFuzz/scripts/bmc_hunt.py",
+                "--dut", "tlul_socket_1n", "-v", "bug_sel_trunc",
+                "-f", "bug_misroute_q", "--max-steps", "16",
+                "--timeout", str(duration * 1000), "--work", work,
+                cwd=root, seconds=duration + 180, timeout_ok=False,
+                log=result / "bmc.log",
+                env={"PATH": f"/opt/symbfuzz/yosys/bin:{os.environ['PATH']}"})
+            require(has_text(result / "bmc.log", r"bug_sel_trunc\s+bug_misroute_q\s+SAT"),
+                    "InterConFuzz did not find the bundled misroute bug")
+            witnesses = list(work.glob("*.bug_misroute_q.witness.txt"))
+            require(len(witnesses) == 1 and witnesses[0].stat().st_size > 0,
+                    "InterConFuzz produced no BMC witness")
         case "hw_like_sw":
             run("python3", "/opt/integration-checks/hw_like_sw.py", "--output", result / "checks",
                 seconds=120, timeout_ok=False, log=result / "checks.log")
