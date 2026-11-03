@@ -219,6 +219,14 @@ RUN python3 -m venv /opt/crv \
 # Keeping this target small avoids building unrelated fuzzers and private submodules.
 FROM presifuzz AS crv_runtime
 USER root
+# Experiment scripts run with the PreSiFuzz venv's python3 (first on PATH).
+# Install their plotting, coverage, and quality-diversity dependencies there;
+# Ubuntu's python3-matplotlib/scipy packages are outside this venv.
+RUN /opt/presifuzz/venv/bin/pip install --no-cache-dir \
+      'numpy>=1.21,<3' 'matplotlib>=3.5,<4' \
+      pyslang==11.0.0 ribs==0.12.0 zstandard==0.25.0 toml==0.10.2 \
+ && /opt/presifuzz/venv/bin/python -c \
+      'import matplotlib, numpy, pyslang, ribs, scipy, toml, zstandard'
 # VC Static's vc_static_shell1 links libXtst, and Certitude links libX11-xcb, even in batch mode.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       tcsh ksh dc lsb-release libelf1 libtinfo5 libncurses5 libnuma1 libxtst6 libx11-xcb1 \
