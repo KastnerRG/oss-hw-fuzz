@@ -10,3 +10,14 @@ fuzzers/presifuzz/fuzzers/opentitan-fuzzer-verilator-hw-cov/build/
 fuzzers/presifuzz/fuzzers/opentitan-fuzzer-verilator-hw-cov/target/
 fuzzers/presifuzz/fuzzers/opentitan-fuzzer-verilator-hw-cov/logs/
 fuzzers/presifuzz/fuzzers/opentitan-fuzzer-verilator-hw-cov/solutions/
+fuzzers/sethlab_hwfuzzing/*
+!fuzzers/sethlab_hwfuzzing/fuzzitizer/
+fuzzers/sethlab_hwfuzzing/fuzzitizer/.venv/
+fuzzers/sethlab_hwfuzzing/fuzzitizer/sim/
+fuzzers/sethlab_hwfuzzing/fuzzitizer/outputs/
+fuzzers/sethlab_hwfuzzing/fuzzitizer/outputs_all/
+fuzzers/sethlab_hwfuzzing/fuzzitizer/ipfuzzer/sim/
+fuzzers/sethlab_hwfuzzing/fuzzitizer/ipfuzzer/outputs/
+fuzzers/sethlab_hwfuzzing/fuzzitizer/ipfuzzer/outputs_all/
+fuzzers/sethlab_hwfuzzing/fuzzitizer/ipfuzzer/ipfuzzer_output/
+fuzzers/sethlab_hwfuzzing/fuzzitizer/benchmarks/cal/run_folder/

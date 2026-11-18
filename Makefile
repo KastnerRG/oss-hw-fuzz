@@ -6,7 +6,7 @@ SHELL := /bin/bash
 DOCKER ?= docker
 IMAGE ?= oss-hw-fuzz:dev
 PUBLISHED_IMAGE ?= ghcr.io/kastnerrg/oss-hw-fuzz:latest
-CONTAINER ?= oss-hw-fuzz-$(shell id -un)
+CONTAINER ?= oss-hw-fuzz-$(shell id -un 2>/dev/null || id -u)
 CONTAINER_HOSTNAME ?= fuzz
 BUILD_JOBS ?= 8
 HWFUZZ_BUILD_JOBS ?= $(BUILD_JOBS)
@@ -42,6 +42,7 @@ help:
 	@echo 'make run_all   Run all examples; save logs and status under results/'
 	@echo 'make run_all_oss_backend   Run examples without commercial EDA tools'
 	@echo 'make run FUZZER=rfuzz DURATION=30   Run one example'
+	@echo 'make run FUZZER=fuzzitizer DURATION=30   Run the Caliptra UART VCS example'
 	@echo 'make kill / restart   Remove / recreate this container'
 
 # Initialize only the nested repositories needed by these examples.

@@ -30,7 +30,7 @@ The table covers IP, SoC, and NoC fuzzers from [SoK: You Find What You Seek](htt
 | BugsBunny | IP | | [SILM'22](https://silm-workshop.github.io/2022-papers/silm2022-bugsbunny.pdf) | `Will get` | |
 | TargetFuzz | IP | | [ASP-DAC'26](https://doi.org/10.1109/ASP-DAC66049.2026.11420533) | `Will get` | |
 | SynFuzz | Netlist | | [arXiv'25](https://arxiv.org/abs/2504.18812) | `Will get` | |
-| Fuzzitizer | SoC | | [ASIA CCS'26](https://doi.org/10.1145/3779208.3806078) | `Will get` | |
+| [FUZZItizer](https://github.com/KastnerRG/sethlab_hwfuzzing/tree/main/fuzzitizer) | SoC | SV | [ASIA CCS'26](https://doi.org/10.1145/3779208.3806078) | `Working` | Caliptra UART VCS campaign with selected inputs and sanitizer replay. |
 | FuzzWiz | IP | | [ISETC'24](https://doi.org/10.1109/ISETC63109.2024.10797245) | `No response` | |
 | FMTC | IP | | [ISCAS'21](https://doi.org/10.1109/ISCAS51556.2021.9401267) | `No response` | |
 | FormalFuzzer | SoC | | [ASP-DAC'24](https://doi.org/10.1109/ASP-DAC58780.2024.10473911) | `No response` | |
@@ -93,6 +93,17 @@ make run_all_oss_backend DURATION=30
 Run one example with `make run FUZZER=nocfuzzer DURATION=30`, replacing the fuzzer name as needed.
 For the new examples, use `make run FUZZER=interconfuzz DURATION=30` or
 `make run FUZZER=vgf DURATION=30`.
+Use `make run FUZZER=fuzzitizer DURATION=30` for the bundled Caliptra UART campaign.
+It needs a mounted Synopsys VCS installation and license. The example uses the
+fork's bundled sanitizer assertions, builds separate exploration and replay
+simulators, and records coverage, selected inputs, and violation triage.
+JasperGold is needed to regenerate assertions for another RTL version; its
+register-width log is absent from the fork, so this example retains all
+zeroization events without the width-based filter.
+The full Caliptra SoC campaign is not part of this check. Its installer requires
+a GCC 12.2 RISC-V multilib toolchain. The available GCC 13.4 toolchain compiled
+the SoC here, but its test simulation had not finished ROM boot when the check
+was stopped after about 2.5 minutes.
 `DURATION` is the fuzzing or BMC solver budget in seconds; compilation and setup take additional time.
 After building or pulling a new image, use `make restart` so the container uses it.
 

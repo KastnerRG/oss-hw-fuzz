@@ -22,9 +22,9 @@ from pathlib import Path
 NAMES = (
     "hw_like_sw", "hw_fuzzing_afl", "hyperfuzzer", "presifuzz", "symbfuzz", "profuzz",
     "rtl_fuzz_lab", "fast_hw_fuzz", "rfuzz", "directfuzz", "spinalfuzz", "fuss", "nocfuzzer",
-    "interconfuzz", "vgf",
+    "interconfuzz", "vgf", "fuzzitizer",
 )
-COMMERCIAL_TOOL_NAMES = frozenset(("symbfuzz", "profuzz", "nocfuzzer"))
+COMMERCIAL_TOOL_NAMES = frozenset(("symbfuzz", "profuzz", "nocfuzzer", "fuzzitizer"))
 OSS_BACKEND_NAMES = tuple(name for name in NAMES if name not in COMMERCIAL_TOOL_NAMES)
 FUZZERS = Path("/opt/fuzzers")
 JAVA = ("java", "-XX:ActiveProcessorCount=8", "-cp",
@@ -158,6 +158,10 @@ def run_example(name, result, duration):
         afl_executed(result / "afl")
 
     match name:
+        case "fuzzitizer":
+            run("python3", "/opt/integration-checks/fuzzitizer.py", result, duration,
+                seconds=duration + 500, timeout_ok=False,
+                log=result / "integration.log")
         case "vgf":
             # The upstream FSM-unlock testcase is bundled without an input
             # corpus. The first unlock byte produces a state transition and

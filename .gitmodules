@@ -43,3 +43,6 @@
 [submodule "fuzzers/vgf"]
 	path = fuzzers/vgf
 	url = https://github.com/KastnerRG/fuzz_vgf.git
+[submodule "fuzzers/sethlab_hwfuzzing"]
+	path = fuzzers/sethlab_hwfuzzing
+	url = git@github.com:KastnerRG/sethlab_hwfuzzing.git

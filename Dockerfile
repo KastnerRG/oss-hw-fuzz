@@ -457,6 +457,19 @@ RUN sed -i 's/constexpr auto avalon_mm_signals/const auto avalon_mm_signals/; s/
     make -C /opt/fuzzers/vgf/src/wrapper \
       TEST=../testcases/0000-fsm-unlock -j "${BUILD_JOBS}"
 
+FROM base AS fuzzitizer
+COPY --chown=fuzz:fuzz fuzzers/sethlab_hwfuzzing/fuzzitizer/ /opt/fuzzers/sethlab_hwfuzzing/fuzzitizer/
+COPY scripts/fuzzitizer_compat/ /tmp/fuzzitizer_compat/
+RUN python3 /tmp/fuzzitizer_compat/patch.py /opt/fuzzers/sethlab_hwfuzzing/fuzzitizer \
+ && mkdir -p /opt/fuzzers/sethlab_hwfuzzing/fuzzitizer/ipfuzzer/input_seeds \
+ && chown fuzz:fuzz /opt/fuzzers/sethlab_hwfuzzing/fuzzitizer/ipfuzzer/input_seeds \
+ && python3 -m venv /opt/fuzzitizer/venv \
+ && /opt/fuzzitizer/venv/bin/pip install --no-cache-dir \
+      -r /opt/fuzzers/sethlab_hwfuzzing/fuzzitizer/requirements.txt 'numpy<2' zstandard \
+ && /opt/fuzzitizer/venv/bin/python -c \
+      'import jsonlines, numpy, pyverilog, tqdm, zstandard' \
+ && rm -rf /tmp/fuzzitizer_compat
+
 FROM base AS final
 LABEL org.opencontainers.image.source="https://github.com/KastnerRG/oss-hw-fuzz"
 # Runtime dependencies for optional, read-only host EDA tool mounts.
@@ -516,6 +529,8 @@ COPY --from=spinal /opt/fuzzers/ /opt/fuzzers/
 COPY --from=spinal /opt/spinalfuzz/ /opt/spinalfuzz/
 COPY --from=spinal /home/fuzz/ /home/fuzz/
 COPY --from=nocfuzzer /opt/fuzzers/nocfuzzer/ /opt/fuzzers/nocfuzzer/
+COPY --from=fuzzitizer /opt/fuzzers/sethlab_hwfuzzing/ /opt/fuzzers/sethlab_hwfuzzing/
+COPY --from=fuzzitizer /opt/fuzzitizer/ /opt/fuzzitizer/
 COPY --chmod=755 scripts/run-examples.py /usr/local/bin/run-examples
 COPY --chmod=755 scripts/tool-env.py /usr/local/bin/tool-env
 COPY scripts/integration-checks/ /opt/integration-checks/
